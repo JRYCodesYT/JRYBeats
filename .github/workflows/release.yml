@@ -1,4 +1,4 @@
-name: Build Windows Release
+name: Build JRYBeats Release
 
 on:
   push:
@@ -9,7 +9,8 @@ permissions:
   contents: write
 
 jobs:
-  build:
+  windows:
+    name: Windows
     runs-on: windows-latest
 
     steps:
@@ -21,38 +22,144 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Install Python dependencies
+      - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
           pip install pyinstaller
 
-      - name: Build JRYBeats EXE
+      - name: Get version
+        shell: powershell
+        run: |
+          $version = "${{ github.ref_name }}".TrimStart("v")
+          echo "VERSION=$version" >> $env:GITHUB_ENV
+
+      - name: Build Windows EXE
         run: |
           pyinstaller --noconfirm --onefile --windowed --name JRYBeats JRYBeats.py
 
-      - name: Create portable ZIP
+      - name: Create Windows portable ZIP
         shell: powershell
         run: |
           New-Item -ItemType Directory -Force -Path release
           Copy-Item dist\JRYBeats.exe release\JRYBeats.exe
-          Compress-Archive -Path release\JRYBeats.exe -DestinationPath JRYBeats-${{ github.ref_name }}-portable.zip
+          Compress-Archive `
+            -Path release\JRYBeats.exe `
+            -DestinationPath JRYBeats_${{ env.VERSION }}_Windows_x64-portable.zip
 
       - name: Install Inno Setup
         shell: powershell
         run: |
           choco install innosetup -y
 
-      - name: Build installer
+      - name: Build Windows installer
         shell: powershell
         run: |
-          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer.iss
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" `
+            /DMyAppVersion="${{ env.VERSION }}" `
+            installer.iss
 
-      - name: Upload release files
+      - name: Upload Windows release files
         uses: softprops/action-gh-release@v2
         with:
           files: |
             dist/JRYBeats.exe
-            JRYBeats-${{ github.ref_name }}-portable.zip
-            installer-output/JRYBeats_1.0.0_x64-setup.exe
-          generate_release_notes: true
+            JRYBeats_${{ env.VERSION }}_Windows_x64-portable.zip
+            installer-output/JRYBeats_${{ env.VERSION }}_Windows_x64-setup.exe
+
+
+  linux:
+    name: Linux
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Linux audio dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libportaudio2 \
+            portaudio19-dev \
+            libasound2-dev
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pyinstaller
+
+      - name: Get version
+        run: |
+          echo "VERSION=${GITHUB_REF_NAME#v}" >> $GITHUB_ENV
+
+      - name: Build Linux app
+        run: |
+          pyinstaller \
+            --noconfirm \
+            --onefile \
+            --windowed \
+            --name JRYBeats \
+            JRYBeats.py
+
+      - name: Package Linux build
+        run: |
+          mkdir -p JRYBeats
+          cp dist/JRYBeats JRYBeats/
+          chmod +x JRYBeats/JRYBeats
+          tar -czf JRYBeats_${VERSION}_Linux_x64.tar.gz JRYBeats
+
+      - name: Upload Linux release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            JRYBeats_${{ env.VERSION }}_Linux_x64.tar.gz
+
+
+  macos:
+    name: macOS
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pyinstaller
+
+      - name: Get version
+        run: |
+          echo "VERSION=${GITHUB_REF_NAME#v}" >> $GITHUB_ENV
+
+      - name: Build macOS app
+        run: |
+          pyinstaller \
+            --noconfirm \
+            --windowed \
+            --name JRYBeats \
+            JRYBeats.py
+
+      - name: Package macOS build
+        run: |
+          cd dist
+          zip -r "../JRYBeats_${VERSION}_macOS.zip" JRYBeats.app
+
+      - name: Upload macOS release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            JRYBeats_${{ env.VERSION }}_macOS.zip
