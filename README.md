@@ -23,3 +23,7 @@ python JRYBeats.py
 ## Notes
 
 Changes from YT Video : The drum icons are drawn in Pygame. The clap is synthesized in code. The snare and hi-hat use differently EQ-shaped noise so they have distinct frequencies.
+
+## License
+
+JRYBeats is licensed under the MIT License. See the `LICENSE` file for details.
