@@ -1,3 +1,4 @@
 pygame
 numpy
 sounddevice
+tkinter
