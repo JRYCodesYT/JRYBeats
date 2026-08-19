@@ -1,5 +1,7 @@
 import json
 import os
+import subprocess
+import sys
 import time
 import wave
 import tkinter as tk
@@ -373,15 +375,109 @@ def import_audio_file(path):
 
 
 # Project files
+# macOS: pygame/SDL and Tk both want the Cocoa NSApplication singleton, so creating
+# a Tk() root after pygame.init() (and destroying it after each dialog) crashes or
+# hangs the file picker. Use the native dialog instead, and keep a single Tk root
+# on other platforms.
+_dialog_root = None
+PROJECT_FILETYPES = [('JRYBeats Project', '*.jry'), ('JSON', '*.json'), ('All Files', '*.*')]
+AUDIO_FILETYPES = [('Audio Files', '*.wav *.mp3 *.ogg'), ('WAV', '*.wav'), ('MP3', '*.mp3'), ('OGG', '*.ogg'), ('All Files', '*.*')]
+
+def _escape_applescript(text):
+    return str(text).replace('\\', '\\\\').replace('"', '\\"')
+
+def _clear_dialog_mouse_events():
+    pygame.event.clear((pygame.MOUSEBUTTONDOWN, pygame.MOUSEBUTTONUP, pygame.MOUSEMOTION))
+
+def _macos_file_dialog(mode, title, default_name=''):
+    escaped_title = _escape_applescript(title)
+    if mode == 'save':
+        escaped_name = _escape_applescript(default_name or 'untitled.jry')
+        script = (
+            f'try\n'
+            f'    set theFile to choose file name with prompt "{escaped_title}" default name "{escaped_name}"\n'
+            f'    return POSIX path of theFile\n'
+            f'on error\n'
+            f'    return ""\n'
+            f'end try\n'
+        )
+    else:
+        script = (
+            f'try\n'
+            f'    set theFile to choose file with prompt "{escaped_title}"\n'
+            f'    return POSIX path of theFile\n'
+            f'on error\n'
+            f'    return ""\n'
+            f'end try\n'
+        )
+    try:
+        result = subprocess.run(['osascript'], input=script, capture_output=True, text=True)
+    except OSError:
+        return None
+    if result.returncode != 0:
+        return None
+    return result.stdout.strip()
+
+def _get_dialog_root():
+    global _dialog_root
+    if _dialog_root is None:
+        _dialog_root = tk.Tk()
+        _dialog_root.withdraw()
+        _dialog_root.attributes('-topmost', True)
+    try:
+        _dialog_root.lift()
+        _dialog_root.focus_force()
+        _dialog_root.update()
+    except tk.TclError:
+        _dialog_root = tk.Tk()
+        _dialog_root.withdraw()
+        _dialog_root.attributes('-topmost', True)
+        _dialog_root.update()
+    return _dialog_root
+
+def _tk_file_dialog(mode, title, filetypes, default_name=''):
+    root = _get_dialog_root()
+    if mode == 'save':
+        path = filedialog.asksaveasfilename(title=title, defaultextension='.jry', filetypes=filetypes, initialfile=default_name)
+    else:
+        path = filedialog.askopenfilename(title=title, filetypes=filetypes)
+    try:
+        root.update()
+    except tk.TclError:
+        pass
+    return path or ''
+
+def ask_open_path(title, filetypes):
+    if sys.platform == 'darwin':
+        path = _macos_file_dialog('open', title)
+        _clear_dialog_mouse_events()
+        if path is None:
+            print("Couldn't open the macOS file dialog.")
+            return ''
+        return path
+    path = _tk_file_dialog('open', title, filetypes)
+    _clear_dialog_mouse_events()
+    return path
+
+def ask_save_path(title, filetypes, default_name='untitled.jry'):
+    if sys.platform == 'darwin':
+        path = _macos_file_dialog('save', title, default_name)
+        _clear_dialog_mouse_events()
+        if path is None:
+            print("Couldn't open the macOS file dialog.")
+            return ''
+        if path and os.path.splitext(path)[1] == '':
+            path += '.jry'
+        return path
+    path = _tk_file_dialog('save', title, filetypes, default_name)
+    _clear_dialog_mouse_events()
+    return path
+
 def save_project():
     if recording_microphone:
         print('Stop microphone recording before saving.')
         return
-    root = tk.Tk()
-    root.withdraw()
-    root.attributes('-topmost', True)
-    path = filedialog.asksaveasfilename(title='Save JRYBeats Project', defaultextension='.jry', filetypes=[('JRYBeats Project', '*.jry'), ('JSON', '*.json'), ('All Files', '*.*')])
-    root.destroy()
+    path = ask_save_path('Save JRYBeats Project', PROJECT_FILETYPES)
     if not path:
         return
     project = {'version': 2, 'bpm': bpm, 'current_view': current_view, 'pattern': pattern, 'melody_pattern': melody_pattern, 'melody_instrument': melody_instrument, 'piano_scroll': piano_scroll, 'drum_mixer': drum_mixer, 'melody_mixer': melody_mixer, 'audio_tracks': []}
@@ -409,11 +505,7 @@ def load_project():
     if recording_microphone:
         print('Stop microphone recording before loading a project.')
         return
-    root = tk.Tk()
-    root.withdraw()
-    root.attributes('-topmost', True)
-    path = filedialog.askopenfilename(title='Load JRYBeats Project', filetypes=[('JRYBeats Project', '*.jry'), ('JSON', '*.json'), ('All Files', '*.*')])
-    root.destroy()
+    path = ask_open_path('Load JRYBeats Project', PROJECT_FILETYPES)
     if not path:
         return
     try:
@@ -539,11 +631,7 @@ def stop_microphone_recording():
     import_audio_file(filename)
 
 def choose_audio_file():
-    root = tk.Tk()
-    root.withdraw()
-    root.attributes('-topmost', True)
-    path = filedialog.askopenfilename(title='Import Audio', filetypes=[('Audio Files', '*.wav *.mp3 *.ogg'), ('WAV', '*.wav'), ('MP3', '*.mp3'), ('OGG', '*.ogg'), ('All Files', '*.*')])
-    root.destroy()
+    path = ask_open_path('Import Audio', AUDIO_FILETYPES)
     if path:
         import_audio_file(path)
 
