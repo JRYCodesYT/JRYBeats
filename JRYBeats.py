@@ -385,10 +385,12 @@ def draw_piano_cell(cell_rect, cell, mouse_over, sharp):
     pygame.draw.rect(screen, LIGHT_LINE, cell_rect, 1)
 piano_grid_start_x = 130
 piano_step_width = 45
-piano_grid_top = 225
+piano_grid_top = 247
 piano_row_height = 28
 visible_piano_rows = 12
 piano_scroll = 11
+piano_step_numbers_y = 238
+piano_instrument_y = 607
 audio_patterns = [[] for _ in range(NUM_PATTERNS)]
 edit_audio_pattern = 0
 audio_tracks = audio_patterns[0]
@@ -602,7 +604,9 @@ def handle_mixer_click(pos):
             return
 audio_timeline_x = 210
 audio_timeline_width = 740
-audio_track_top = 270
+audio_timeline_top = 278
+audio_timeline_numbers_y = 261
+audio_track_top = 293
 audio_track_height = 72
 recording_microphone = False
 microphone_chunks = []
@@ -1210,11 +1214,9 @@ song_tab_rect = pygame.Rect(339, 150, 72, 40)
 mixer_tab_rect = pygame.Rect(419, 150, 78, 40)
 save_project_rect = pygame.Rect(805, 153, 72, 32)
 load_project_rect = pygame.Rect(885, 153, 72, 32)
-import_audio_rect = pygame.Rect(25, 215, 82, 36)
-record_audio_rect = pygame.Rect(115, 215, 88, 36)
-drum_pattern_minus_rect, drum_pattern_value_rect, drum_pattern_plus_rect = pattern_selector_rects(58, 204)
-piano_pattern_minus_rect, piano_pattern_value_rect, piano_pattern_plus_rect = pattern_selector_rects(850, 199)
-audio_pattern_minus_rect, audio_pattern_value_rect, audio_pattern_plus_rect = pattern_selector_rects(790, 215)
+import_audio_rect = pygame.Rect(25, 238, 82, 36)
+record_audio_rect = pygame.Rect(115, 238, 88, 36)
+pattern_minus_rect, pattern_value_rect, pattern_plus_rect = pattern_selector_rects(58, 204)
 song_add_rect = pygame.Rect(30, 605, 90, 28)
 mic_prev_rect = pygame.Rect(455, 88, 30, 30)
 mic_device_rect = pygame.Rect(490, 88, 420, 30)
@@ -1296,9 +1298,9 @@ while running:
             elif current_view == 'SONG':
                 handle_song_click(event.pos)
             elif current_view == 'DRUMS':
-                if drum_pattern_minus_rect.collidepoint(event.pos):
+                if pattern_minus_rect.collidepoint(event.pos):
                     set_edit_drum_pattern(edit_drum_pattern - 1)
-                elif drum_pattern_plus_rect.collidepoint(event.pos):
+                elif pattern_plus_rect.collidepoint(event.pos):
                     set_edit_drum_pattern(edit_drum_pattern + 1)
                 else:
                     for track in range(len(drum_tracks)):
@@ -1311,15 +1313,14 @@ while running:
                                 if pattern[track][step]:
                                     play_sound_with_mixer(drum_sounds[track], drum_mixer[track])
             elif current_view == 'PIANO':
-                if piano_pattern_minus_rect.collidepoint(event.pos):
+                if pattern_minus_rect.collidepoint(event.pos):
                     set_edit_piano_pattern(edit_piano_pattern - 1)
-                elif piano_pattern_plus_rect.collidepoint(event.pos):
+                elif pattern_plus_rect.collidepoint(event.pos):
                     set_edit_piano_pattern(edit_piano_pattern + 1)
                 else:
-                    instrument_y = 585
                     clicked_instrument = False
                     for i in range(len(instruments)):
-                        rect = pygame.Rect(130 + i * 100, instrument_y, 85, 30)
+                        rect = pygame.Rect(130 + i * 100, piano_instrument_y, 85, 30)
                         if rect.collidepoint(event.pos):
                             melody_instrument = instruments[i]
                             clicked_instrument = True
@@ -1345,9 +1346,9 @@ while running:
                                         sound = melody_sounds[note, melody_instrument]
                                         play_sound_with_mixer(sound, instrument_mixer[melody_instrument])
             elif current_view == 'AUDIO':
-                if audio_pattern_minus_rect.collidepoint(event.pos):
+                if pattern_minus_rect.collidepoint(event.pos):
                     set_edit_audio_pattern(edit_audio_pattern - 1)
-                elif audio_pattern_plus_rect.collidepoint(event.pos):
+                elif pattern_plus_rect.collidepoint(event.pos):
                     set_edit_audio_pattern(edit_audio_pattern + 1)
                 else:
                     for index in range(len(audio_tracks)):
@@ -1471,7 +1472,7 @@ while running:
     if current_view == 'DRUMS':
         pat_label = tiny_font.render('PAT', True, SECONDARY_TEXT)
         screen.blit(pat_label, (22, 210))
-        draw_pattern_selector(drum_pattern_minus_rect.x, drum_pattern_minus_rect.y, edit_drum_pattern)
+        draw_pattern_selector(pattern_minus_rect.x, pattern_minus_rect.y, edit_drum_pattern)
         for step in range(num_steps):
             x = sequencer_start_x + step * (step_size + step_gap)
             number = step_font.render(str(step + 1), True, TEXT_COLOR)
@@ -1500,12 +1501,12 @@ while running:
                 pygame.draw.rect(screen, LINE_COLOR, rect, 2)
     elif current_view == 'PIANO':
         pat_label = tiny_font.render('PAT', True, SECONDARY_TEXT)
-        screen.blit(pat_label, (810, 205))
-        draw_pattern_selector(piano_pattern_minus_rect.x, piano_pattern_minus_rect.y, edit_piano_pattern)
+        screen.blit(pat_label, (22, 210))
+        draw_pattern_selector(pattern_minus_rect.x, pattern_minus_rect.y, edit_piano_pattern)
         for step in range(num_steps):
             x = piano_grid_start_x + step * piano_step_width
             number = step_font.render(str(step + 1), True, TEXT_COLOR)
-            screen.blit(number, number.get_rect(center=(x + piano_step_width // 2, 213)))
+            screen.blit(number, number.get_rect(center=(x + piano_step_width // 2, piano_step_numbers_y)))
         for visible_row in range(visible_piano_rows):
             note_index = piano_scroll + visible_row
             if note_index >= len(piano_notes):
@@ -1532,9 +1533,8 @@ while running:
         if playing:
             playhead_x = piano_grid_start_x + current_step * piano_step_width
             pygame.draw.line(screen, PLAYHEAD_BLUE, (playhead_x, piano_grid_top), (playhead_x, piano_grid_top + visible_piano_rows * piano_row_height), 3)
-        instrument_y = 585
         for i in range(len(instruments)):
-            rect = pygame.Rect(130 + i * 100, instrument_y, 85, 30)
+            rect = pygame.Rect(130 + i * 100, piano_instrument_y, 85, 30)
             if melody_instrument == instruments[i]:
                 pygame.draw.rect(screen, INSTRUMENT_COLORS[instruments[i]], rect)
                 instrument_text_color = (255, 255, 255)
@@ -1679,16 +1679,16 @@ while running:
         record_text_rect = record_text.get_rect(midleft=(icon_x + microphone_image.get_width() + 5, record_audio_rect.centery))
         screen.blit(record_text, record_text_rect)
         pat_label = tiny_font.render('PAT', True, SECONDARY_TEXT)
-        screen.blit(pat_label, (750, 221))
-        draw_pattern_selector(audio_pattern_minus_rect.x, audio_pattern_minus_rect.y, edit_audio_pattern)
+        screen.blit(pat_label, (22, 210))
+        draw_pattern_selector(pattern_minus_rect.x, pattern_minus_rect.y, edit_audio_pattern)
         for step in range(num_steps):
             x = audio_timeline_x + int(step / num_steps * audio_timeline_width)
-            pygame.draw.line(screen, LIGHT_LINE, (x, 255), (x, HEIGHT - 25), 1)
+            pygame.draw.line(screen, LIGHT_LINE, (x, audio_timeline_top), (x, HEIGHT - 25), 1)
             number = tiny_font.render(str(step + 1), True, SECONDARY_TEXT)
-            screen.blit(number, (x + 4, 238))
+            screen.blit(number, (x + 4, audio_timeline_numbers_y))
         if playing:
             playhead_x = audio_timeline_x + int(current_step / num_steps * audio_timeline_width)
-            pygame.draw.line(screen, PLAYHEAD_BLUE, (playhead_x, 255), (playhead_x, HEIGHT - 20), 3)
+            pygame.draw.line(screen, PLAYHEAD_BLUE, (playhead_x, audio_timeline_top), (playhead_x, HEIGHT - 20), 3)
         for index in range(len(audio_tracks)):
             track = audio_tracks[index]
             y = audio_track_top + index * audio_track_height

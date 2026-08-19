@@ -1,0 +1,15 @@
+#!/bin/sh
+# Strip Cursor co-author trailers so they never land in commits.
+msg_file=$1
+tmp=$(mktemp)
+grep -viE '^[[:space:]]*Co-authored-by:[[:space:]].*(Cursor|cursoragent@cursor\.com)' "$msg_file" > "$tmp" || true
+awk '
+  { lines[NR] = $0 }
+  END {
+    end = NR
+    while (end > 0 && lines[end] ~ /^[[:space:]]*$/) end--
+    for (i = 1; i <= end; i++) print lines[i]
+    if (end > 0) print ""
+  }
+' "$tmp" > "$msg_file"
+rm -f "$tmp"

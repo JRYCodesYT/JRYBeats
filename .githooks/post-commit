@@ -1,0 +1,18 @@
+#!/bin/sh
+# If a tool injects a Cursor co-author after commit-msg, strip it with amend.
+git_dir=$(git rev-parse --git-path .)
+if [ -d "$git_dir/rebase-merge" ] || [ -d "$git_dir/rebase-apply" ]; then
+  exit 0
+fi
+if [ "$SKIP_CURSOR_COAUTHOR_STRIP" = "1" ]; then
+  exit 0
+fi
+msg=$(git log -1 --format=%B)
+if ! printf '%s\n' "$msg" | grep -qiE '^[[:space:]]*Co-authored-by:[[:space:]].*(Cursor|cursoragent@cursor\.com)'; then
+  exit 0
+fi
+tmp=$(mktemp)
+printf '%s\n' "$msg" | grep -viE '^[[:space:]]*Co-authored-by:[[:space:]].*(Cursor|cursoragent@cursor\.com)' > "$tmp" || true
+export SKIP_CURSOR_COAUTHOR_STRIP=1
+git commit --amend -F "$tmp" --no-verify --quiet
+rm -f "$tmp"
